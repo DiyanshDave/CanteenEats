@@ -5,6 +5,7 @@ import authRoutes from "./routes/authRoutes.js";
 import menuRoutes from "./routes/menuRoutes.js";
 import orderRoutes from "./routes/orderRoutes.js";
 import staffRoutes from "./routes/staffRoutes.js";
+import inventoryRoutes from "./routes/inventoryRoutes.js";
 
 const app = express();
 
@@ -16,6 +17,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/menu", menuRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/staff", staffRoutes);
+app.use("/api/inventory", inventoryRoutes);
 
 // Health check endpoint
 app.get("/api/health", (req, res) => {
