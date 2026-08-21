@@ -6,6 +6,7 @@ import menuRoutes from "./routes/menuRoutes.js";
 import orderRoutes from "./routes/orderRoutes.js";
 import staffRoutes from "./routes/staffRoutes.js";
 import inventoryRoutes from "./routes/inventoryRoutes.js";
+import analyticsRoutes from "./routes/analyticsRoutes.js";
 
 const app = express();
 
@@ -18,6 +19,7 @@ app.use("/api/menu", menuRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/staff", staffRoutes);
 app.use("/api/inventory", inventoryRoutes);
+app.use("/api/analytics", analyticsRoutes);
 
 // Health check endpoint
 app.get("/api/health", (req, res) => {
