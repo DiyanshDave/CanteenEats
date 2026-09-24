@@ -20,7 +20,7 @@ const sanitizeUser = (user) => ({
 
 export const register = async (req, res, next) => {
   try {
-    const { name, email, password, role } = req.body;
+    const { name, email, password } = req.body;
 
     if (!name || !email || !password) {
       return res.status(400).json({
@@ -37,16 +37,14 @@ export const register = async (req, res, next) => {
       });
     }
 
-    const allowedRoles = ["STUDENT", "STAFF", "ADMIN"];
-    const finalRole = allowedRoles.includes(role) ? role : "STUDENT";
-
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const user = await User.create({
       name,
       email,
       password: hashedPassword,
-      role: finalRole,
+      // Public registration must never grant privileged roles.
+      role: "STUDENT",
     });
 
     const token = generateToken(user);
@@ -97,5 +95,55 @@ export const login = async (req, res, next) => {
     });
   } catch (err) {
     next(err);
+  }
+};
+
+export const createDevelopmentUser = async (req, res, next) => {
+  try {
+    const { name, email, password, role } = req.body || {};
+
+    if (
+      typeof name !== "string" ||
+      !name.trim() ||
+      typeof email !== "string" ||
+      !email.trim() ||
+      typeof password !== "string" ||
+      !password ||
+      !["STAFF", "ADMIN"].includes(role)
+    ) {
+      return res.status(400).json({
+        status: "error",
+        message: "Name, email, password, and a STAFF or ADMIN role are required",
+      });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const existingUser = await User.findOne({ email: normalizedEmail });
+    if (existingUser) {
+      return res.status(409).json({
+        status: "error",
+        message: "Email is already registered",
+      });
+    }
+
+    const user = await User.create({
+      name: name.trim(),
+      email: normalizedEmail,
+      password: await bcrypt.hash(password, 10),
+      role,
+    });
+
+    return res.status(201).json({
+      status: "success",
+      user: sanitizeUser(user),
+    });
+  } catch (err) {
+    if (err.code === 11000) {
+      return res.status(409).json({
+        status: "error",
+        message: "Email is already registered",
+      });
+    }
+    return next(err);
   }
 };

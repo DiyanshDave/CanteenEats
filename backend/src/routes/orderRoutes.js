@@ -9,7 +9,7 @@ import { authenticate, authorize } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-router.post("/", authenticate, createOrder);
+router.post("/", authenticate, authorize("STUDENT"), createOrder);
 router.get("/:id", authenticate, getOrderById);
 router.get("/:id/queue", authenticate, getOrderQueue);
 router.patch("/:id/status", authenticate, authorize("STAFF", "ADMIN"), updateOrderStatus);

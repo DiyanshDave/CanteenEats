@@ -1,0 +1,25 @@
+const demoMenu = [
+  { name: "Idli Sambar", description: "Steamed rice cakes with sambar and coconut chutney.", price: 55, category: "South Indian", image: "/menu-images/idli-sambar.jpg" },
+  { name: "Masala Dosa", description: "Crisp dosa filled with spiced potato, served with chutneys.", price: 85, category: "South Indian", image: "/menu-images/masala-dosa.jpg" },
+  { name: "Poha", description: "Flattened rice with peanuts, curry leaves, and a squeeze of lemon.", price: 45, category: "Breakfast", image: "/menu-images/poha.jpg" },
+  { name: "Vegetable Upma", description: "Savory semolina cooked with seasonal vegetables.", price: 45, category: "Breakfast", image: "/menu-images/upma.jpg" },
+  { name: "Samosa", description: "Crisp pastry filled with spiced potato and peas.", price: 25, category: "Snacks", image: "/menu-images/samosa.jpg" },
+  { name: "Vada Pav", description: "Mumbai-style potato fritter in a soft pav with chutneys.", price: 40, category: "Snacks", image: "/menu-images/vada-pav.jpg" },
+  { name: "Pav Bhaji", description: "Spiced vegetable mash with buttered pav and lemon.", price: 90, category: "Snacks", image: "/menu-images/pav-bhaji.jpg" },
+  { name: "Curry Puff", description: "Crisp pastry filled with a gently spiced potato mixture.", price: 30, category: "Snacks", image: "/menu-images/curry-puff.jpg" },
+  { name: "Paneer Kathi Roll", description: "Grilled paneer and vegetables wrapped in a soft roti.", price: 80, category: "Snacks", image: "/menu-images/paneer-roll.jpg" },
+  { name: "Paneer Chilli", description: "Crispy paneer tossed with peppers in a tangy chilli sauce.", price: 80, category: "Snacks", image: "/menu-images/paneer-chilli.jpg" },
+  { name: "Veg Grilled Sandwich", description: "Toasted bread layered with vegetables and chutney.", price: 70, category: "Snacks", image: "/menu-images/veg-sandwich.jpg" },
+  { name: "Chole Bhature", description: "Slow-cooked chickpeas with a fluffy fried bhatura.", price: 100, category: "Main Course", image: "/menu-images/chole-bhature.jpg" },
+  { name: "Veg Biryani", description: "Fragrant basmati rice layered with spiced vegetables and herbs.", price: 125, category: "Main Course", image: "/menu-images/veg-biryani.jpg" },
+  { name: "Paneer Biryani", description: "Fragrant basmati rice layered with spiced paneer.", price: 110, category: "Main Course", image: "/menu-images/paneer-biryani.jpg" },
+  { name: "Aloo Paratha", description: "Whole-wheat flatbread stuffed with seasoned potato.", price: 60, category: "Main Course", image: "/menu-images/paratha.jpg" },
+  { name: "Plain Paratha", description: "Layered whole-wheat flatbread, served with curd.", price: 35, category: "Main Course", image: "/menu-images/paratha.jpg" },
+  { name: "Masala Chai", description: "Freshly brewed tea with milk and warming spices.", price: 20, category: "Beverages", image: "/menu-images/chai.jpg" },
+  { name: "Cold Coffee", description: "Chilled coffee blended with milk.", price: 60, category: "Beverages", image: "/menu-images/cold-coffee.jpg" },
+  { name: "Sweet Lassi", description: "Chilled sweet yogurt drink served with a light garnish.", price: 50, category: "Beverages", image: "/menu-images/lassi.jpg" },
+  { name: "Gulab Jamun", description: "Soft milk-solid dumplings in cardamom syrup.", price: 40, category: "Desserts", image: "/menu-images/gulab-jamun.jpg" },
+  { name: "Kheer", description: "Creamy rice pudding finished with cardamom.", price: 45, category: "Desserts", image: "/menu-images/kheer.jpg" },
+];
+
+export default demoMenu;

@@ -4,7 +4,9 @@ export const getMenu = async (req, res, next) => {
   try {
     const { category } = req.query;
 
-    const filter = { isAvailable: true };
+    const canIncludeUnavailable =
+      req.query.includeUnavailable === "true" && req.user?.role === "ADMIN";
+    const filter = canIncludeUnavailable ? {} : { isAvailable: true };
     if (category) {
       filter.category = category;
     }

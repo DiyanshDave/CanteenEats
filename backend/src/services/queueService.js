@@ -1,36 +1,40 @@
 import Order from "../models/Order.js";
 
 const AVERAGE_PREP_MINUTES = 5;
+const TOKEN_TIME_ZONE = "Asia/Kolkata";
 const KITCHEN_QUEUE_STATUSES = ["QUEUED", "PREPARING"];
 const ACTIVE_STATUSES = ["QUEUED", "PREPARING", "READY"];
 
 // Allowed forward transitions for staff-managed order status updates
 const VALID_TRANSITIONS = {
-  QUEUED: ["PREPARING"],
-  PREPARING: ["READY"],
+  QUEUED: ["PREPARING", "CANCELLED"],
+  PREPARING: ["READY", "CANCELLED"],
   READY: ["COMPLETED"],
   COMPLETED: [],
   CANCELLED: [],
 };
 
 function getTodayRange() {
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(start);
-  end.setDate(end.getDate() + 1);
-  return { start, end };
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-CA", {
+      timeZone: TOKEN_TIME_ZONE,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(new Date()).map(({ type, value }) => [type, value])
+  );
+  const start = new Date(`${parts.year}-${parts.month}-${parts.day}T00:00:00+05:30`);
+  return { start };
 }
 
 // Generates the next sequential daily token (A01, A02, ... A100, ...), resetting each day
 async function generateNextToken() {
-  const { start, end } = getTodayRange();
+  const { start } = getTodayRange();
 
-  const count = await Order.countDocuments({
-    createdAt: { $gte: start, $lt: end },
-  });
+  const count = await Order.countDocuments({ tokenDate: start, token: { $type: "string" } });
 
   const sequence = count + 1;
-  return `A${String(sequence).padStart(2, "0")}`;
+  return { token: `A${String(sequence).padStart(2, "0")}`, tokenDate: start };
 }
 
 // Creates an order with a unique daily token, retrying on rare token collisions.
@@ -39,16 +43,60 @@ export async function createOrderWithToken(orderData) {
   const MAX_ATTEMPTS = 5;
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-    const token = await generateNextToken();
-
     try {
-      const order = await Order.create({ ...orderData, token });
+      const { token, tokenDate } = await generateNextToken();
+      const order = await Order.create({ ...orderData, token, tokenDate });
       return order;
     } catch (err) {
       // Duplicate token from a near-simultaneous request - retry with a fresh token
       if (err.code === 11000 && err.keyPattern && err.keyPattern.token) {
         continue;
       }
+      throw err;
+    }
+  }
+
+  throw new Error("Failed to assign a unique queue token after multiple attempts");
+}
+
+// Assigns a queue token to an already-paid pending order. A conditional update
+// makes simultaneous callback and webhook delivery safe and idempotent.
+export async function queuePaidOrder(orderId) {
+  const MAX_ATTEMPTS = 5;
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    const { token, tokenDate } = await generateNextToken();
+    try {
+      const order = await Order.findOneAndUpdate(
+        {
+          _id: orderId,
+          status: "PENDING_PAYMENT",
+          paymentStatus: "PAID",
+          token: { $exists: false },
+        },
+        { $set: { token, tokenDate, status: "QUEUED", queuedAt: new Date() } },
+        { new: true }
+      );
+
+      if (order) {
+        const queueInfo = await getQueueInfo(order);
+        order.estimatedWaitMinutes = queueInfo.estimatedWaitMinutes;
+        await order.save();
+        return order;
+      }
+
+      const existing = await Order.findById(orderId);
+      if (existing?.paymentStatus === "PAID" && existing.token) {
+        if (existing.status === "QUEUED" && existing.estimatedWaitMinutes == null) {
+          const queueInfo = await getQueueInfo(existing);
+          existing.estimatedWaitMinutes = queueInfo.estimatedWaitMinutes;
+          await existing.save();
+        }
+        return existing;
+      }
+      return null;
+    } catch (err) {
+      if (err.code === 11000 && err.keyPattern?.token) continue;
       throw err;
     }
   }

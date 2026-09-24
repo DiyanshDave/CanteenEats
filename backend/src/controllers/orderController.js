@@ -1,97 +1,14 @@
 import Order from "../models/Order.js";
-import Product from "../models/Product.js";
 import {
-  createOrderWithToken,
   getQueueInfo,
   isValidTransition,
 } from "../services/queueService.js";
 
 export const createOrder = async (req, res, next) => {
-  try {
-    const { items } = req.body;
-
-    if (!Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({
-        status: "error",
-        message: "At least one order item is required",
-      });
-    }
-
-    // Validate item shape and quantities
-    for (const item of items) {
-      if (!item.productId) {
-        return res.status(400).json({
-          status: "error",
-          message: "Each item must include a productId",
-        });
-      }
-      if (!Number.isInteger(item.quantity) || item.quantity <= 0) {
-        return res.status(400).json({
-          status: "error",
-          message: "Each item quantity must be a positive integer",
-        });
-      }
-    }
-
-    const productIds = items.map((item) => item.productId);
-    const products = await Product.find({ _id: { $in: productIds } });
-
-    const orderItems = [];
-    let totalAmount = 0;
-
-    for (const requestedItem of items) {
-      const product = products.find(
-        (p) => p._id.toString() === requestedItem.productId
-      );
-
-      if (!product) {
-        return res.status(404).json({
-          status: "error",
-          message: `Product not found: ${requestedItem.productId}`,
-        });
-      }
-
-      if (!product.isAvailable) {
-        return res.status(400).json({
-          status: "error",
-          message: `Product is unavailable: ${product.name}`,
-        });
-      }
-
-      const quantity = requestedItem.quantity;
-      const priceSnapshot = product.price;
-
-      orderItems.push({
-        product: product._id,
-        nameSnapshot: product.name,
-        priceSnapshot,
-        quantity,
-      });
-
-      totalAmount += priceSnapshot * quantity;
-    }
-
-    // Order enters the queue immediately upon creation
-    const order = await createOrderWithToken({
-      user: req.user.id,
-      items: orderItems,
-      totalAmount,
-      status: "QUEUED",
-      estimatedWaitMinutes: null,
-    });
-
-    // Calculate initial wait estimate now that the order exists in the queue
-    const queueInfo = await getQueueInfo(order);
-    order.estimatedWaitMinutes = queueInfo.estimatedWaitMinutes;
-    await order.save();
-
-    res.status(201).json({
-      status: "success",
-      order,
-    });
-  } catch (err) {
-    next(err);
-  }
+  res.status(410).json({
+    status: "error",
+    message: "Orders now require payment through /api/payments/create-order",
+  });
 };
 
 export const getOrderById = async (req, res, next) => {
@@ -195,6 +112,19 @@ export const updateOrderStatus = async (req, res, next) => {
         status: "error",
         message: `Cannot transition order from ${order.status} to ${nextStatus}`,
       });
+    }
+
+    const timestampByStatus = {
+      QUEUED: "queuedAt",
+      PREPARING: "preparingAt",
+      READY: "readyAt",
+      COMPLETED: "completedAt",
+      CANCELLED: "cancelledAt",
+    };
+    const timestampField = timestampByStatus[nextStatus];
+
+    if (timestampField && !order[timestampField]) {
+      order[timestampField] = new Date();
     }
 
     order.status = nextStatus;

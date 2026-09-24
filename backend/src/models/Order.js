@@ -46,23 +46,42 @@ const orderSchema = new mongoose.Schema(
       required: true,
       min: 0,
     },
-    token: {
-      type: String,
-      required: true,
-      unique: true,
-    },
+    token: { type: String },
+    tokenDate: Date,
     status: {
       type: String,
-      enum: ["PLACED", "QUEUED", "PREPARING", "READY", "COMPLETED", "CANCELLED"],
+      enum: ["PENDING_PAYMENT", "PLACED", "QUEUED", "PREPARING", "READY", "COMPLETED", "CANCELLED"],
       default: "PLACED",
     },
+    paymentStatus: { type: String, enum: ["PENDING", "PAID", "FAILED", "REFUNDED"] },
+    paymentMethod: { type: String, enum: ["RAZORPAY"] },
+    razorpayOrderId: { type: String },
+    razorpayPaymentId: { type: String },
+    razorpaySignature: { type: String },
+    paidAt: Date,
     estimatedWaitMinutes: {
       type: Number,
       min: 0,
     },
+    queuedAt: Date,
+    preparingAt: Date,
+    readyAt: Date,
+    completedAt: Date,
+    cancelledAt: Date,
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+    autoIndex: false,
+    toJSON: {
+      transform: (document, value) => {
+        delete value.razorpaySignature;
+        return value;
+      },
+    },
+  }
 );
+
+orderSchema.index({ tokenDate: 1, token: 1 }, { unique: true, sparse: true });
 
 const Order = mongoose.model("Order", orderSchema);
 

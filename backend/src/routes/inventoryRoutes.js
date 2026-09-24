@@ -23,7 +23,7 @@ router.get("/:id", authorize("STAFF", "ADMIN"), getInventoryItem);
 
 router.post("/", authorize("ADMIN"), createInventoryItem);
 router.patch("/:id/adjust", authorize("STAFF", "ADMIN"), adjustInventoryItem);
-router.patch("/:id", authorize("STAFF", "ADMIN"), updateInventoryItem);
+router.patch("/:id", authorize("ADMIN"), updateInventoryItem);
 router.delete("/:id", authorize("ADMIN"), deleteInventoryItem);
 
 export default router;

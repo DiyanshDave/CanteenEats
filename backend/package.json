@@ -6,7 +6,9 @@
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
-    "dev": "node --watch src/server.js"
+    "dev": "node --watch src/server.js",
+    "seed:demo-menu": "node scripts/seed-demo-menu.js",
+    "repair:demo-menu": "node scripts/repair-demo-menu.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

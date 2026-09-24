@@ -1,5 +1,6 @@
-import mongoose from "mongoose";
 import Order from "../models/Order.js";
+
+const PAID_OR_LEGACY = [{ paymentStatus: "PAID" }, { paymentStatus: { $exists: false } }];
 
 function getTodayRange() {
   const start = new Date();
@@ -39,25 +40,44 @@ export const getOverview = async (req, res, next) => {
     const [totalOrders, completedOrders, cancelledOrders, activeOrders, completedStats] =
       await Promise.all([
         Order.countDocuments(dateFilter),
-        Order.countDocuments({ ...dateFilter, status: "COMPLETED" }),
+        Order.countDocuments({ ...dateFilter, status: "COMPLETED", $or: PAID_OR_LEGACY }),
         Order.countDocuments({ ...dateFilter, status: "CANCELLED" }),
         Order.countDocuments({
           ...dateFilter,
           status: { $in: ["QUEUED", "PREPARING", "READY"] },
         }),
         Order.aggregate([
-          { $match: { ...dateFilter, status: "COMPLETED" } },
+          { $match: { ...dateFilter, status: "COMPLETED", $or: PAID_OR_LEGACY } },
           {
             $group: {
               _id: null,
               totalRevenue: { $sum: "$totalAmount" },
               count: { $sum: 1 },
-              // Wait time proxy: time from createdAt to last update (COMPLETED), in minutes
               totalWaitMinutes: {
                 $sum: {
-                  $divide: [
-                    { $subtract: ["$updatedAt", "$createdAt"] },
-                    60000,
+                  $cond: [
+                    {
+                      $and: [
+                        { $eq: [{ $type: "$queuedAt" }, "date"] },
+                        { $eq: [{ $type: "$readyAt" }, "date"] },
+                      ],
+                    },
+                    { $divide: [{ $subtract: ["$readyAt", "$queuedAt"] }, 60000] },
+                    0,
+                  ],
+                },
+              },
+              waitCount: {
+                $sum: {
+                  $cond: [
+                    {
+                      $and: [
+                        { $eq: [{ $type: "$queuedAt" }, "date"] },
+                        { $eq: [{ $type: "$readyAt" }, "date"] },
+                      ],
+                    },
+                    1,
+                    0,
                   ],
                 },
               },
@@ -66,11 +86,16 @@ export const getOverview = async (req, res, next) => {
         ]),
       ]);
 
-    const stats = completedStats[0] || { totalRevenue: 0, count: 0, totalWaitMinutes: 0 };
+    const stats = completedStats[0] || {
+      totalRevenue: 0,
+      count: 0,
+      totalWaitMinutes: 0,
+      waitCount: 0,
+    };
 
     const totalRevenue = stats.totalRevenue || 0;
     const averageOrderValue = stats.count > 0 ? totalRevenue / stats.count : 0;
-    const averageWaitTime = stats.count > 0 ? stats.totalWaitMinutes / stats.count : 0;
+    const averageWaitTime = stats.waitCount > 0 ? stats.totalWaitMinutes / stats.waitCount : 0;
 
     res.status(200).json({
       status: "success",
@@ -94,7 +119,7 @@ export const getPopularItems = async (req, res, next) => {
     const limit = parseInt(req.query.limit, 10) || 5;
 
     const results = await Order.aggregate([
-      { $match: { status: "COMPLETED" } },
+      { $match: { status: "COMPLETED", $or: PAID_OR_LEGACY } },
       { $unwind: "$items" },
       {
         $group: {
@@ -131,7 +156,7 @@ export const getPopularItems = async (req, res, next) => {
 export const getPeakHours = async (req, res, next) => {
   try {
     const results = await Order.aggregate([
-      { $match: { status: "COMPLETED" } },
+      { $match: { status: "COMPLETED", $or: PAID_OR_LEGACY } },
       {
         $group: {
           _id: { $hour: "$createdAt" },
@@ -172,11 +197,31 @@ export const getDailyTrend = async (req, res, next) => {
           _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
           orderCount: { $sum: 1 },
           completedOrders: {
-            $sum: { $cond: [{ $eq: ["$status", "COMPLETED"] }, 1, 0] },
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $eq: ["$status", "COMPLETED"] },
+                    { $or: [{ $eq: ["$paymentStatus", "PAID"] }, { $eq: [{ $type: "$paymentStatus" }, "missing"] }] },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
           },
           revenue: {
             $sum: {
-              $cond: [{ $eq: ["$status", "COMPLETED"] }, "$totalAmount", 0],
+              $cond: [
+                {
+                  $and: [
+                    { $eq: ["$status", "COMPLETED"] },
+                    { $or: [{ $eq: ["$paymentStatus", "PAID"] }, { $eq: [{ $type: "$paymentStatus" }, "missing"] }] },
+                  ],
+                },
+                "$totalAmount",
+                0,
+              ],
             },
           },
         },
@@ -205,7 +250,7 @@ export const getDailyTrend = async (req, res, next) => {
 export const getCategoryPerformance = async (req, res, next) => {
   try {
     const results = await Order.aggregate([
-      { $match: { status: "COMPLETED" } },
+      { $match: { status: "COMPLETED", $or: PAID_OR_LEGACY } },
       { $unwind: "$items" },
       {
         $lookup: {
@@ -255,7 +300,7 @@ export const getDemandForecast = async (req, res, next) => {
 
     // Daily quantity sold per product over the last 7 days
     const dailyQuantities = await Order.aggregate([
-      { $match: { status: "COMPLETED", createdAt: { $gte: start, $lte: end } } },
+      { $match: { status: "COMPLETED", createdAt: { $gte: start, $lte: end }, $or: PAID_OR_LEGACY } },
       { $unwind: "$items" },
       {
         $group: {
