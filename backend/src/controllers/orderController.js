@@ -47,8 +47,8 @@ export const getOrderById = async (req, res, next) => {
 export const getOrderQueue = async (req, res, next) => {
   try {
     const order = await Order.findById(req.params.id).select(
-      "_id user token status createdAt"
-    );
+      "_id user token status paymentStatus createdAt queuedAt preparingAt readyAt items"
+    ).populate("items.product", "prepTimeMinutes");
 
     if (!order) {
       return res.status(404).json({

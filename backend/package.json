@@ -7,6 +7,7 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
+    "test": "node --test",
     "seed:demo-menu": "node scripts/seed-demo-menu.js",
     "repair:demo-menu": "node scripts/repair-demo-menu.js"
   },

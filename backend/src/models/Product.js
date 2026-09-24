@@ -16,6 +16,12 @@ const productSchema = new mongoose.Schema(
       required: true,
       min: 0,
     },
+    prepTimeMinutes: {
+      type: Number,
+      required: true,
+      min: 1,
+      default: 5,
+    },
     category: {
       type: String,
       trim: true,

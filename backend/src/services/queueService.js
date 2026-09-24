@@ -1,8 +1,12 @@
 import Order from "../models/Order.js";
+import {
+  calculateCalibrationFactor,
+  estimateBasePreparationMinutes,
+  formatQueueInfo,
+  scheduleKitchenOrders,
+} from "./etaModel.js";
 
-const AVERAGE_PREP_MINUTES = 5;
 const TOKEN_TIME_ZONE = "Asia/Kolkata";
-const KITCHEN_QUEUE_STATUSES = ["QUEUED", "PREPARING"];
 const ACTIVE_STATUSES = ["QUEUED", "PREPARING", "READY"];
 
 // Allowed forward transitions for staff-managed order status updates
@@ -81,6 +85,7 @@ export async function queuePaidOrder(orderId) {
       if (order) {
         const queueInfo = await getQueueInfo(order);
         order.estimatedWaitMinutes = queueInfo.estimatedWaitMinutes;
+        order.estimatedReadyAt = queueInfo.estimatedReadyAt;
         await order.save();
         return order;
       }
@@ -90,6 +95,7 @@ export async function queuePaidOrder(orderId) {
         if (existing.status === "QUEUED" && existing.estimatedWaitMinutes == null) {
           const queueInfo = await getQueueInfo(existing);
           existing.estimatedWaitMinutes = queueInfo.estimatedWaitMinutes;
+          existing.estimatedReadyAt = queueInfo.estimatedReadyAt;
           await existing.save();
         }
         return existing;
@@ -104,42 +110,88 @@ export async function queuePaidOrder(orderId) {
   throw new Error("Failed to assign a unique queue token after multiple attempts");
 }
 
-// Computes live queue position, wait estimate, and active order counts for a given order
-export async function getQueueInfo(order) {
-  const activeOrders = await Order.find({
-    status: { $in: ACTIVE_STATUSES },
-  }).select("_id status createdAt");
+const paidOrLegacyFilter = {
+  $or: [{ paymentStatus: "PAID" }, { paymentStatus: { $exists: false } }],
+};
+const activeOrderProjection = "_id status paymentStatus token createdAt queuedAt preparingAt readyAt items";
+const HISTORY_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
+const HISTORY_LIMIT = 200;
+const CALIBRATION_CACHE_MS = 60 * 1000;
+let calibrationCache = { factor: 1, expiresAt: 0 };
 
-  const totalActiveOrders = activeOrders.length;
+export function getKitchenParallelCapacity() {
+  const configured = Number(process.env.KITCHEN_PARALLEL_CAPACITY);
+  return Number.isInteger(configured) && configured > 0 ? configured : 2;
+}
 
-  const kitchenQueueOrders = activeOrders
-    .filter((o) => KITCHEN_QUEUE_STATUSES.includes(o.status))
-    .sort((a, b) => a.createdAt - b.createdAt);
+async function getHistoricalCalibrationFactor() {
+  if (calibrationCache.expiresAt > Date.now()) return calibrationCache.factor;
 
-  let position = null;
-  let numberOfOrdersAhead = 0;
-  let estimatedWaitMinutes = 0;
+  try {
+    const since = new Date(Date.now() - HISTORY_WINDOW_MS);
+    const history = await Order.find({
+      status: { $in: ["READY", "COMPLETED"] },
+      preparingAt: { $type: "date", $gte: since },
+      readyAt: { $type: "date" },
+      ...paidOrLegacyFilter,
+    })
+      .select("items preparingAt readyAt")
+      .sort({ readyAt: -1 })
+      .limit(HISTORY_LIMIT)
+      .populate("items.product", "prepTimeMinutes");
 
-  if (KITCHEN_QUEUE_STATUSES.includes(order.status)) {
-    const index = kitchenQueueOrders.findIndex(
-      (o) => o._id.toString() === order._id.toString()
-    );
-    numberOfOrdersAhead = index >= 0 ? index : 0;
-    position = numberOfOrdersAhead + 1;
-    estimatedWaitMinutes = (numberOfOrdersAhead + 1) * AVERAGE_PREP_MINUTES;
+    const calibrationData = history.map((order) => ({
+      actualDurationMinutes: (new Date(order.readyAt) - new Date(order.preparingAt)) / 60_000,
+      baselineDurationMinutes: estimateBasePreparationMinutes(order.items),
+    }));
+    calibrationCache = {
+      factor: calculateCalibrationFactor(calibrationData),
+      expiresAt: Date.now() + CALIBRATION_CACHE_MS,
+    };
+  } catch {
+    calibrationCache = { factor: 1, expiresAt: Date.now() + CALIBRATION_CACHE_MS };
   }
-  // READY / COMPLETED / CANCELLED orders are no longer waiting on kitchen prep,
-  // so position stays null and estimatedWaitMinutes stays 0.
+  return calibrationCache.factor;
+}
 
-  return {
-    orderId: order._id,
-    token: order.token,
-    status: order.status,
-    position,
-    estimatedWaitMinutes,
-    numberOfOrdersAhead,
-    totalActiveOrders,
-  };
+async function loadActiveOrders() {
+  return Order.find({
+    status: { $in: ACTIVE_STATUSES },
+    ...paidOrLegacyFilter,
+  })
+    .select(activeOrderProjection)
+    .populate("items.product", "prepTimeMinutes")
+    .lean();
+}
+
+async function calculateQueueInfos(requestedOrders, activeOrders) {
+  const targetRequiresEstimate = requestedOrders.some((order) => ["QUEUED", "PREPARING"].includes(order.status));
+  const factor = targetRequiresEstimate ? await getHistoricalCalibrationFactor() : 1;
+  const now = new Date();
+  const schedule = scheduleKitchenOrders({
+    orders: activeOrders,
+    capacity: getKitchenParallelCapacity(),
+    calibrationFactor: factor,
+    now,
+  });
+  return new Map(requestedOrders.map((order) => [
+    String(order._id || order.id),
+    formatQueueInfo(order, schedule, now),
+  ]));
+}
+
+// The individual student endpoint uses a fresh queue snapshot on every request.
+export async function getQueueInfo(order) {
+  const activeOrders = await loadActiveOrders();
+  const infos = await calculateQueueInfos([order], activeOrders);
+  return infos.get(String(order._id || order.id));
+}
+
+// Staff views pass their current active-order snapshot to avoid querying and
+// recalculating the same kitchen state once per card.
+export async function getQueueInfosForOrders(orders) {
+  const infos = await calculateQueueInfos(orders, orders);
+  return infos;
 }
 
 // Checks whether moving from currentStatus to nextStatus is a permitted transition
@@ -148,4 +200,4 @@ export function isValidTransition(currentStatus, nextStatus) {
   return allowed.includes(nextStatus);
 }
 
-export { AVERAGE_PREP_MINUTES, KITCHEN_QUEUE_STATUSES, ACTIVE_STATUSES };
+export { ACTIVE_STATUSES };

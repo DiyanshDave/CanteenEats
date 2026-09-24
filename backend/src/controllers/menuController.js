@@ -45,7 +45,7 @@ export const getMenuItem = async (req, res, next) => {
 
 export const createMenuItem = async (req, res, next) => {
   try {
-    const { name, description, price, category, image, isAvailable } = req.body;
+    const { name, description, price, category, image, isAvailable, prepTimeMinutes } = req.body;
 
     if (!name || price === undefined) {
       return res.status(400).json({
@@ -60,11 +60,15 @@ export const createMenuItem = async (req, res, next) => {
         message: "Price must be a positive number",
       });
     }
+    if (prepTimeMinutes !== undefined && (!Number.isFinite(prepTimeMinutes) || prepTimeMinutes < 1)) {
+      return res.status(400).json({ status: "error", message: "Preparation time must be at least one minute" });
+    }
 
     const product = await Product.create({
       name,
       description,
       price,
+      prepTimeMinutes: prepTimeMinutes ?? 5,
       category,
       image,
       isAvailable: isAvailable === undefined ? true : isAvailable,
@@ -81,7 +85,7 @@ export const createMenuItem = async (req, res, next) => {
 
 export const updateMenuItem = async (req, res, next) => {
   try {
-    const { name, description, price, category, image, isAvailable } = req.body;
+    const { name, description, price, category, image, isAvailable, prepTimeMinutes } = req.body;
 
     if (price !== undefined && (typeof price !== "number" || price <= 0)) {
       return res.status(400).json({
@@ -96,6 +100,9 @@ export const updateMenuItem = async (req, res, next) => {
         message: "isAvailable must be a boolean",
       });
     }
+    if (prepTimeMinutes !== undefined && (!Number.isFinite(prepTimeMinutes) || prepTimeMinutes < 1)) {
+      return res.status(400).json({ status: "error", message: "Preparation time must be at least one minute" });
+    }
 
     const updates = {};
     if (name !== undefined) updates.name = name;
@@ -104,6 +111,7 @@ export const updateMenuItem = async (req, res, next) => {
     if (category !== undefined) updates.category = category;
     if (image !== undefined) updates.image = image;
     if (isAvailable !== undefined) updates.isAvailable = isAvailable;
+    if (prepTimeMinutes !== undefined) updates.prepTimeMinutes = prepTimeMinutes;
 
     const product = await Product.findByIdAndUpdate(req.params.id, updates, {
       new: true,

@@ -46,6 +46,7 @@ export async function buildOrderItems(items) {
       product: product._id,
       nameSnapshot: product.name,
       priceSnapshot: product.price,
+      prepTimeMinutesSnapshot: product.prepTimeMinutes || 5,
       quantity: requestedItem.quantity,
     });
     totalAmount += product.price * requestedItem.quantity;

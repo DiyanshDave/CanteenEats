@@ -18,6 +18,15 @@ const formatPrice = (value) => new Intl.NumberFormat("en-IN", {
 const formatStatus = (status = "") =>
   status.toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase());
 
+const formatEstimatedTime = (value) => {
+  if (!value) return "";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "" : new Intl.DateTimeFormat("en-IN", {
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+};
+
 const OrderTracking = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -206,7 +215,8 @@ const OrderTracking = () => {
                 </div>
                 <div className="rounded-3xl border border-orange-100 bg-orange-50 p-5 sm:p-6">
                   <p className="text-xs font-bold uppercase tracking-wide text-orange-700">Estimated wait</p>
-                  <p className="mt-2 text-3xl font-bold text-navy">{status === "PENDING_PAYMENT" ? "After payment" : typeof queue.estimatedWaitMinutes === "number" ? `${queue.estimatedWaitMinutes}` : "—"}<span className="ml-1 text-base font-semibold">{status === "PENDING_PAYMENT" ? "" : typeof queue.estimatedWaitMinutes === "number" ? "min" : ""}</span></p>
+                  <p className="mt-2 text-3xl font-bold text-navy">{status === "PENDING_PAYMENT" ? "After payment" : status === "READY" ? "Ready now" : status === "COMPLETED" ? "Completed" : typeof queue.estimatedWaitMinutes === "number" ? `~${queue.estimatedWaitMinutes}` : "—"}<span className="ml-1 text-base font-semibold">{["PENDING_PAYMENT", "READY", "COMPLETED"].includes(status) ? "" : typeof queue.estimatedWaitMinutes === "number" ? "min" : ""}</span></p>
+                  {status !== "PENDING_PAYMENT" && formatEstimatedTime(queue.estimatedReadyAt) && <p className="mt-1 text-sm text-slate-600">{["READY", "COMPLETED"].includes(status) ? "Ready at" : "Estimated ready"} {formatEstimatedTime(queue.estimatedReadyAt)}</p>}
                   {queue.totalActiveOrders != null && <p className="mt-1 text-sm text-slate-600">{queue.totalActiveOrders} active {queue.totalActiveOrders === 1 ? "order" : "orders"}</p>}
                 </div>
               </section>

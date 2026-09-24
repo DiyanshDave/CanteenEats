@@ -22,6 +22,10 @@ const orderItemSchema = new mongoose.Schema(
       required: true,
       min: 1,
     },
+    prepTimeMinutesSnapshot: {
+      type: Number,
+      min: 1,
+    },
   },
   { _id: false }
 );
@@ -63,6 +67,7 @@ const orderSchema = new mongoose.Schema(
       type: Number,
       min: 0,
     },
+    estimatedReadyAt: Date,
     queuedAt: Date,
     preparingAt: Date,
     readyAt: Date,
@@ -82,6 +87,8 @@ const orderSchema = new mongoose.Schema(
 );
 
 orderSchema.index({ tokenDate: 1, token: 1 }, { unique: true, sparse: true });
+orderSchema.index({ status: 1, queuedAt: 1, createdAt: 1 });
+orderSchema.index({ status: 1, readyAt: -1 });
 
 const Order = mongoose.model("Order", orderSchema);
 

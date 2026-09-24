@@ -22,7 +22,7 @@ if (process.env.JWT_SECRET.length < 32) {
 mongoose
   .connect(MONGODB_URI)
   .then(() => {
-    return ensureSparseTokenIndex();
+    return ensureOrderIndexes();
   })
   .then(() => {
     console.log("MongoDB connected successfully");
@@ -36,7 +36,7 @@ mongoose
     process.exit(1);
   });
 
-async function ensureSparseTokenIndex() {
+async function ensureOrderIndexes() {
   let indexes = [];
   try {
     indexes = await Order.collection.indexes();
@@ -66,4 +66,6 @@ async function ensureSparseTokenIndex() {
     }]
   );
   await Order.collection.createIndex({ tokenDate: 1, token: 1 }, { unique: true, sparse: true });
+  await Order.collection.createIndex({ status: 1, queuedAt: 1, createdAt: 1 });
+  await Order.collection.createIndex({ status: 1, readyAt: -1 });
 }

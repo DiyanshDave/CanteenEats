@@ -1,4 +1,5 @@
 import Order from "../models/Order.js";
+import { getKitchenParallelCapacity, getQueueInfosForOrders } from "../services/queueService.js";
 
 const STUDENT_SAFE_FIELDS = "name email role";
 const PRODUCT_SAFE_FIELDS = "name price category image isAvailable";
@@ -27,21 +28,27 @@ export const getStaffOrders = async (req, res, next) => {
           message: "Invalid status value",
         });
       }
-      filter = { status };
+      filter = {
+        status,
+        $or: [{ paymentStatus: "PAID" }, { paymentStatus: { $exists: false } }],
+      };
     } else {
-      filter = { status: { $in: ACTIVE_KITCHEN_STATUSES } };
+      filter = {
+        status: { $in: ACTIVE_KITCHEN_STATUSES },
+        $or: [{ paymentStatus: "PAID" }, { paymentStatus: { $exists: false } }],
+      };
     }
 
-    // QUEUED -> earliest created first (matches token sequence order)
+    // QUEUED -> first paid into the queue (queuedAt), with createdAt fallback
     // PREPARING / READY -> earliest updatedAt first (best available proxy for
     // when the order entered that status, without redesigning the schema)
     // Any other explicit status filter -> default to createdAt ascending
     if (!status || status === "QUEUED") {
-      sort = { createdAt: 1 };
+      sort = { queuedAt: 1, createdAt: 1 };
     } else if (status === "PREPARING" || status === "READY") {
       sort = { updatedAt: 1 };
     } else {
-      sort = { createdAt: 1 };
+      sort = { queuedAt: 1, createdAt: 1 };
     }
 
     const orders = await Order.find(filter)
@@ -128,16 +135,25 @@ export const getStaffQueue = async (req, res, next) => {
   try {
     const activeOrders = await Order.find({
       status: { $in: ACTIVE_KITCHEN_STATUSES },
-    }).populate("items.product", PRODUCT_SAFE_FIELDS);
+      $or: [{ paymentStatus: "PAID" }, { paymentStatus: { $exists: false } }],
+    })
+      .populate("items.product", `${PRODUCT_SAFE_FIELDS} prepTimeMinutes`)
+      .sort({ queuedAt: 1, createdAt: 1 });
+    const estimates = await getQueueInfosForOrders(activeOrders);
+    const infoFor = (order) => estimates.get(order._id.toString()) || {};
 
     const queued = activeOrders
       .filter((o) => o.status === "QUEUED")
-      .sort((a, b) => a.createdAt - b.createdAt)
+      .sort((a, b) => new Date(a.queuedAt || a.createdAt) - new Date(b.queuedAt || b.createdAt))
       .map((o) => ({
         token: o.token,
         orderId: o._id,
         items: o.items,
-        estimatedWaitMinutes: o.estimatedWaitMinutes,
+        estimatedWaitMinutes: infoFor(o).estimatedWaitMinutes,
+        estimatedReadyAt: infoFor(o).estimatedReadyAt,
+        estimatedPreparationMinutes: infoFor(o).estimatedPreparationMinutes,
+        position: infoFor(o).position,
+        numberOfOrdersAhead: infoFor(o).numberOfOrdersAhead,
         createdAt: o.createdAt,
       }));
 
@@ -148,6 +164,9 @@ export const getStaffQueue = async (req, res, next) => {
         token: o.token,
         orderId: o._id,
         items: o.items,
+        estimatedWaitMinutes: infoFor(o).estimatedWaitMinutes,
+        estimatedReadyAt: infoFor(o).estimatedReadyAt,
+        estimatedPreparationMinutes: infoFor(o).estimatedPreparationMinutes,
         createdAt: o.createdAt,
       }));
 
@@ -158,6 +177,8 @@ export const getStaffQueue = async (req, res, next) => {
         token: o.token,
         orderId: o._id,
         items: o.items,
+        estimatedWaitMinutes: 0,
+        estimatedReadyAt: o.readyAt || null,
         updatedAt: o.updatedAt,
       }));
 
@@ -167,6 +188,7 @@ export const getStaffQueue = async (req, res, next) => {
       preparing,
       ready,
       totalActiveOrders: activeOrders.length,
+      kitchenParallelCapacity: getKitchenParallelCapacity(),
     });
   } catch (err) {
     next(err);

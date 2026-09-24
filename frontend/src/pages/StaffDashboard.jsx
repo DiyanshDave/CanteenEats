@@ -50,7 +50,7 @@ function OrderCard({ order, column, onDetails, onAdvance, busy }) {
       {items.length === 0 && <li className="text-sm text-slate-400">Order details unavailable</li>}
     </ul>
     <div className="mt-4 flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-xs text-slate-500">
-      <span>{column.status === "QUEUED" && Number.isFinite(order.estimatedWaitMinutes) ? `Est. wait ${order.estimatedWaitMinutes} min` : "Updated"}</span><time dateTime={stamp || undefined}>{formatTime(stamp)}</time>
+      <span>{["QUEUED", "PREPARING"].includes(column.status) && Number.isFinite(order.estimatedWaitMinutes) ? `ETA ~${order.estimatedWaitMinutes} min` : "Updated"}</span><time dateTime={stamp || undefined}>{formatTime(stamp)}</time>
     </div>
     <div className="mt-4 grid grid-cols-2 gap-2">
       <button type="button" onClick={() => onDetails(id)} className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-slate-100">Details</button>
