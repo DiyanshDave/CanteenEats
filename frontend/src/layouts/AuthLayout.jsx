@@ -6,7 +6,7 @@ const AuthLayout = ({ title, description, footer, children }) => (
     <div aria-hidden="true" className="pointer-events-none absolute -bottom-40 -right-28 h-[30rem] w-[30rem] rounded-full bg-orange-100/70 blur-3xl" />
 
     <div className="relative w-full max-w-md">
-      <Link to="/login" className="mb-7 flex items-center justify-center gap-3" aria-label="Campus Pantry sign in">
+      <Link to="/login" className="mb-7 flex items-center justify-center gap-3" aria-label="CanteenEats sign in">
         <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-200/70">
           <svg aria-hidden="true" viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.8">
             <path d="M4 10h16l-1.4 9H5.4L4 10Z" strokeLinejoin="round" />
@@ -14,7 +14,7 @@ const AuthLayout = ({ title, description, footer, children }) => (
           </svg>
         </span>
         <span>
-          <span className="block text-lg font-bold tracking-tight text-navy">Campus Pantry</span>
+          <span className="block text-lg font-bold tracking-tight text-navy">CanteenEats</span>
           <span className="block text-xs font-medium tracking-wide text-slate-500">CAMPUS DINING, MADE EASY</span>
         </span>
       </Link>

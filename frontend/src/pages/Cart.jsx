@@ -107,7 +107,7 @@ const Cart = () => {
         key: checkout.keyId,
         amount: checkout.amount,
         currency: checkout.currency,
-        name: "Canteen Queue",
+        name: "CanteenEats",
         description: "Canteen order payment",
         order_id: checkout.razorpayOrderId,
         prefill: { name: user?.name || "", email: user?.email || "" },

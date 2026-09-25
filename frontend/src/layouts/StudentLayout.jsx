@@ -28,7 +28,7 @@ const StudentLayout = ({ user, onLogout, cartCount = 0, children }) => {
             </svg>
           </span>
           <span>
-            <span className="block text-base font-bold tracking-tight text-navy">Campus Pantry</span>
+            <span className="block text-base font-bold tracking-tight text-navy">CanteenEats</span>
             <span className="block text-xs font-medium text-slate-500">Student Portal</span>
           </span>
         </Link>
